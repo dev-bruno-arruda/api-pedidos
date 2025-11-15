@@ -1,0 +1,59 @@
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: user
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: orders_db
+    volumes:
+      - mongo_data:/data/db
+
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+  api_service:
+    build:
+      context: .
+      dockerfile: api_service.Dockerfile
+      args:
+        APP_PATH: api_service
+    container_name: api_service
+    restart: on-failure
+    ports:
+      - "8080:8080"
+    environment:
+      MONGO_URI: mongodb://user:password@mongodb:27017/orders_db?authSource=admin
+      RABBITMQ_URI: amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      - mongodb
+      - rabbitmq
+
+  worker_service:
+    build:
+      context: .
+      dockerfile: worker_service.Dockerfile
+      args:
+        APP_PATH: worker_service
+    container_name: worker_service
+    restart: on-failure
+    environment:
+      MONGO_URI: mongodb://user:password@mongodb:27017/orders_db?authSource=admin
+      RABBITMQ_URI: amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      - mongodb
+      - rabbitmq
+
+volumes:
+  mongo_data:
