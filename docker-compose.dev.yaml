@@ -1,0 +1,71 @@
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: user
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: orders_db
+    volumes:
+      - mongo_data:/data/db
+
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+  api_service:
+    build:
+      context: .
+      dockerfile: api_service.dev.Dockerfile
+    container_name: api_service
+    restart: on-failure
+    ports:
+      - "8080:8080"
+    environment:
+      MONGO_URI: mongodb://user:password@mongodb:27017/orders_db?authSource=admin
+      RABBITMQ_URI: amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      - mongodb
+      - rabbitmq
+    volumes:
+      # Monta o código fonte para hot reload
+      - ./api_service:/app/api_service:delegated
+      # Caches para Go modules e build
+      - go-api-cache:/go/pkg/mod
+      - go-api-build:/app/tmp
+
+  worker_service:
+    build:
+      context: .
+      dockerfile: worker_service.dev.Dockerfile
+    container_name: worker_service
+    restart: on-failure
+    environment:
+      MONGO_URI: mongodb://user:password@mongodb:27017/orders_db?authSource=admin
+      RABBITMQ_URI: amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      - mongodb
+      - rabbitmq
+    volumes:
+      # Monta o código fonte para hot reload
+      - ./worker_service:/app/worker_service:delegated
+      # Caches para Go modules e build
+      - go-worker-cache:/go/pkg/mod
+      - go-worker-build:/app/tmp-worker
+
+volumes:
+  mongo_data:
+  go-api-cache:
+  go-api-build:
+  go-worker-cache:
+  go-worker-build:

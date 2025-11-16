@@ -1,0 +1,26 @@
+# Air temporary files
+tmp/
+tmp-worker/
+build-errors.log
+build-errors-worker.log
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

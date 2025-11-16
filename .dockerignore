@@ -1,0 +1,20 @@
+# Git
+.git
+.gitignore
+
+# Temporary files
+tmp/
+tmp-worker/
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Documentation
+README.md
+*.md
+
+# Docker
+docker-compose*.yaml
+*.Dockerfile
