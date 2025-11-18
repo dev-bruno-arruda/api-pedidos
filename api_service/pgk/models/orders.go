@@ -18,6 +18,7 @@ type Order struct {
     Quantity  int                `json:"quantity" bson:"quantity"`
     Status    string             `json:"status" bson:"status"`
     CreatedAt time.Time          `json:"created_at" bson:"created_at"`
+    UpdatedAt time.Time          `json:"updated_at" bson:"updated_at"`
 }
 
 type OrderMessage struct {
