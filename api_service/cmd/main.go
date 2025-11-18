@@ -106,6 +106,9 @@ func main() {
 	cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), cfg.Shutdown.CleanupTimeout)
 	defer cleanupCancel()
 
+	log.Println("Encerrando workers do OrderService...")
+	orderService.Shutdown()
+
 	if err := publisher.Close(); err != nil {
 		log.Printf("Erro ao fechar conexão com RabbitMQ: %v", err)
 	} else {

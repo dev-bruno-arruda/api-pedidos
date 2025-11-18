@@ -77,20 +77,26 @@ func NewRabbitMQPublisher(config PublisherConfig) (*RabbitMQPublisher, error) {
 }
 
 func (r *RabbitMQPublisher) PublishOrderMessage(ctx context.Context, message models.OrderMessage) error {
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("contexto cancelado antes de publicar: %w", ctx.Err())
+	default:
+	}
+
 	body, err := json.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("erro ao serializar mensagem: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, r.timeout)
+	publishCtx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 
 	err = r.channel.PublishWithContext(
-		ctx,
+		publishCtx,
 		r.exchangeName,
 		r.queueName,
-		false, // mandatory
-		false, // immediate
+		false,
+		false,
 		amqp.Publishing{
 			ContentType:  "application/json",
 			Body:         body,
@@ -98,6 +104,9 @@ func (r *RabbitMQPublisher) PublishOrderMessage(ctx context.Context, message mod
 		},
 	)
 	if err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("contexto cancelado durante publicação: %w", ctx.Err())
+		}
 		return fmt.Errorf("erro ao publicar mensagem: %w", err)
 	}
 
