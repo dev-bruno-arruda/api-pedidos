@@ -72,12 +72,14 @@ func (s *OrderService) Shutdown() {
 func (s *OrderService) CreateOrder(ctx context.Context, req models.CreateOrderRequest) (*models.CreateOrderResponse, error) {
 	orderID := uuid.New().String()
 
+	now := time.Now()
 	order := &models.Order{
 		OrderID:   orderID,
 		Product:   req.Product,
 		Quantity:  req.Quantity,
 		Status:    models.StatusCriado,
-		CreatedAt: time.Now(),
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 
 	err := s.repo.Create(ctx, order)

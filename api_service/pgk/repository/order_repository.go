@@ -38,7 +38,10 @@ func (r *OrderRepository) UpdateStatus(ctx context.Context, orderID string, stat
 	defer cancel()
 
 	filter := bson.M{"order_id": orderID}
-	update := bson.M{"$set": bson.M{"status": status}}
+	update := bson.M{"$set": bson.M{
+		"status":     status,
+		"updated_at": time.Now(),
+	}}
 
 	result, err := r.collection.UpdateOne(ctx, filter, update)
 	if err != nil {
