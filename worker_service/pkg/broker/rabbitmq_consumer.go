@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
+	"github.com/dev-bruno-arruda/api-pedidos/worker_service/pkg/logger"
 	"github.com/dev-bruno-arruda/api-pedidos/worker_service/pkg/models"
 	"github.com/dev-bruno-arruda/api-pedidos/worker_service/pkg/ports"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -38,7 +38,7 @@ func NewRabbitMQConsumer(config ConsumerConfig) (*RabbitMQConsumer, error) {
 		if err == nil {
 			break
 		}
-		log.Printf("Tentativa %d de %d: Falha ao conectar ao RabbitMQ: %v", i+1, config.MaxRetries, err)
+		logger.Warnf("Tentativa %d de %d: Falha ao conectar ao RabbitMQ: %v", i+1, config.MaxRetries, err)
 		time.Sleep(config.RetryDelay)
 	}
 
@@ -77,7 +77,7 @@ func NewRabbitMQConsumer(config ConsumerConfig) (*RabbitMQConsumer, error) {
 		return nil, fmt.Errorf("falha ao configurar QoS: %w", err)
 	}
 
-	log.Println("Conectado ao RabbitMQ com sucesso")
+	logger.Info("Conectado ao RabbitMQ com sucesso")
 
 	return &RabbitMQConsumer{
 		conn:      conn,
@@ -101,7 +101,7 @@ func (c *RabbitMQConsumer) StartConsuming(ctx context.Context, handler ports.Mes
 		return fmt.Errorf("falha ao registrar consumer: %w", err)
 	}
 
-	log.Printf("Iniciando %d workers para processar mensagens...", c.workers)
+	logger.Infof("Iniciando %d workers para processar mensagens...", c.workers)
 
 	var wg sync.WaitGroup
 	notifyClose := make(chan *amqp.Error)
@@ -114,13 +114,13 @@ func (c *RabbitMQConsumer) StartConsuming(ctx context.Context, handler ports.Mes
 
 	select {
 	case <-ctx.Done():
-		log.Println("Context cancelado, aguardando workers finalizarem...")
+		logger.Info("Context cancelado, aguardando workers finalizarem...")
 		wg.Wait()
-		log.Println("Todos os workers finalizados")
+		logger.Info("Todos os workers finalizados")
 		return ctx.Err()
 
 	case err := <-notifyClose:
-		log.Printf("Conexão com RabbitMQ fechada: %v", err)
+		logger.Errorf("Conexão com RabbitMQ fechada: %v", err)
 		wg.Wait()
 		return fmt.Errorf("conexão com RabbitMQ perdida: %w", err)
 	}
@@ -128,28 +128,28 @@ func (c *RabbitMQConsumer) StartConsuming(ctx context.Context, handler ports.Mes
 
 func (c *RabbitMQConsumer) worker(ctx context.Context, id int, msgs <-chan amqp.Delivery, handler ports.MessageHandler, wg *sync.WaitGroup) {
 	defer wg.Done()
-	log.Printf("Worker %d iniciado", id)
+	logger.WorkerInfo(id, "iniciado")
 
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("Worker %d encerrando...", id)
+			logger.WorkerInfo(id, "encerrando...")
 			return
 
 		case msg, ok := <-msgs:
 			if !ok {
-				log.Printf("Worker %d: canal de mensagens fechado", id)
+				logger.WorkerInfo(id, "canal de mensagens fechado")
 				return
 			}
 
-			log.Printf("Worker %d processando mensagem: OrderID=%s", id, extractOrderID(msg.Body))
+			logger.WorkerInfof(id, "processando mensagem: OrderID=%s", extractOrderID(msg.Body))
 
 			if err := c.processMessage(ctx, msg, handler); err != nil {
-				log.Printf("Worker %d: erro ao processar mensagem: %v", id, err)
+				logger.WorkerErrorf(id, "erro ao processar mensagem: %v", err)
 				msg.Nack(false, true)
 			} else {
 				msg.Ack(false)
-				log.Printf("Worker %d: mensagem processada com sucesso", id)
+				logger.WorkerInfo(id, "mensagem processada com sucesso")
 			}
 		}
 	}
@@ -171,7 +171,7 @@ func (c *RabbitMQConsumer) processMessage(ctx context.Context, msg amqp.Delivery
 		return fmt.Errorf("erro ao deserializar mensagem: %w", err)
 	}
 
-	log.Printf("Mensagem recebida: OrderID=%s, Status=%s", orderMsg.OrderID, orderMsg.Status)
+	logger.Infof("Mensagem recebida: OrderID=%s, Status=%s", orderMsg.OrderID, orderMsg.Status)
 
 	err = handler(ctx, orderMsg)
 	if err != nil {

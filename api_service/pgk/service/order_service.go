@@ -3,10 +3,10 @@ package service
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
+	"github.com/dev-bruno-arruda/api-pedidos/api_service/pgk/logger"
 	"github.com/dev-bruno-arruda/api-pedidos/api_service/pgk/models"
 	"github.com/dev-bruno-arruda/api-pedidos/api_service/pgk/ports"
 	"github.com/google/uuid"
@@ -44,29 +44,26 @@ func NewOrderService(repo ports.OrderRepository, publisher ports.MessagePublishe
 
 func (s *OrderService) worker(id int) {
 	defer s.wg.Done()
-	log.Printf("Worker %d iniciado", id)
+	logger.WorkerInfo(id, "iniciado")
 
 	for job := range s.jobQueue {
-		log.Printf("Worker %d processando job: OrderID=%s", id, job.message.OrderID)
+		logger.WorkerInfof(id, "processando job: OrderID=%s", job.message.OrderID)
 
 		err := s.publisher.PublishOrderMessage(job.ctx, job.message)
 		if err != nil {
-			//Obs: aqui poderia ser implementada uma DLQ para não haver descarte de mensagem
-			log.Printf("Worker %d: erro ao publicar mensagem para OrderID=%s: %v",
-				id, job.message.OrderID, err)
+			logger.WorkerErrorf(id, "erro ao publicar mensagem para OrderID=%s: %v", job.message.OrderID, err)
 		} else {
-			log.Printf("Worker %d: mensagem publicada com sucesso para OrderID=%s",
-				id, job.message.OrderID)
+			logger.WorkerInfof(id, "mensagem publicada com sucesso para OrderID=%s", job.message.OrderID)
 		}
 	}
 
-	log.Printf("Worker %d finalizado", id)
+	logger.WorkerInfo(id, "finalizado")
 }
 
 func (s *OrderService) Shutdown() {
 	close(s.jobQueue)
 	s.wg.Wait()
-	log.Println("Todos os workers foram encerrados")
+	logger.Info("Todos os workers foram encerrados")
 }
 
 func (s *OrderService) CreateOrder(ctx context.Context, req models.CreateOrderRequest) (*models.CreateOrderResponse, error) {
@@ -98,13 +95,11 @@ func (s *OrderService) CreateOrder(ctx context.Context, req models.CreateOrderRe
 		ctx:     workerCtx,
 		message: message,
 	}
-	//enfileirando jobs e não bloqear
 	select {
 	case s.jobQueue <- job:
-		log.Printf("Job enfileirado para OrderID=%s", orderID)
+		logger.Infof("Job enfileirado para OrderID=%s", orderID)
 	default:
-		//Obs: Optei por não descartar nenhuma mensagem usando backpressure, porém, aqui, poderíamos colocar um retorno de 503 para evitar problemas maiores.
-		log.Printf("AVISO: Fila de jobs cheia, job para OrderID=%s pode ser processado com atraso", orderID)
+		logger.Warnf("Fila de jobs cheia, job para OrderID=%s pode ser processado com atraso", orderID)
 		s.jobQueue <- job
 	}
 
