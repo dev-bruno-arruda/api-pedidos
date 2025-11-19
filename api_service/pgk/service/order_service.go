@@ -98,16 +98,18 @@ func (s *OrderService) CreateOrder(ctx context.Context, req models.CreateOrderRe
 		ctx:     workerCtx,
 		message: message,
 	}
-
+	//enfileirando jobs e não bloqear
 	select {
 	case s.jobQueue <- job:
 		log.Printf("Job enfileirado para OrderID=%s", orderID)
 	default:
+		//Obs: Optei por não descartar nenhuma mensagem usando backpressure, porém, aqui, poderíamos colocar um retorno de 503 para evitar problemas maiores.
 		log.Printf("AVISO: Fila de jobs cheia, job para OrderID=%s pode ser processado com atraso", orderID)
 		s.jobQueue <- job
 	}
 
-	go func() {
+	go func() { //Li que dependendo da versão do go, esse cancelamento é redundante(pelo próprio timeout do contexto), porém, deixei aqui para exemplificar
+		//eu poderia usar defer para isso também. Mais uma vez, fiz dessa forma apenas para mostrar que também pode ser feito assim.
 		<-workerCtx.Done()
 		cancel()
 	}()
